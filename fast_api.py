@@ -4,8 +4,6 @@ import joblib
 import re
 import nltk
 import uvicorn
-import os
-import requests
 
 from nltk.corpus import stopwords
 
@@ -13,43 +11,13 @@ from nltk.corpus import stopwords
 nltk.download("stopwords")
 stop_words = set(stopwords.words("english"))
 
-# === Download models if not available ===
-MODEL_DIR = "models"
-os.makedirs(MODEL_DIR, exist_ok=True)
-
-FILES = {
-    "sentiment_random_forest_model.pkl": "https://drive.google.com/uc?id=1VHVjlCQeT3lqjKD4a3DCvVC89EUg6F3e",
-    "tfidf_vectorizer.pkl": "https://drive.google.com/uc?id=1XufPqd7h3kY3QKQt3mXbDTsrLOqOChbA",
-    "label_encoder.pkl": "https://drive.google.com/uc?id=Y1RGQUfCU6NJH6SDbvF34ECITdOBFBiAJO",
-}
+# Load exported model and preprocessing tools
+model = joblib.load("models/sentiment_random_forest_model.pkl")
+vectorizer = joblib.load("models/tfidf_vectorizer.pkl")
+label_encoder = joblib.load("models/label_encoder.pkl")
 
 
-def download_file(name, url):
-    path = os.path.join(MODEL_DIR, name)
-    if not os.path.exists(path):
-        print(f"Downloading {name}...")
-        response = requests.get(url)
-        with open(path, "wb") as f:
-            f.write(response.content)
-        print(f"{name} downloaded.")
-    return path
-
-
-# Download and load models
-model = joblib.load(
-    download_file(
-        "sentiment_random_forest_model.pkl", FILES["sentiment_random_forest_model.pkl"]
-    )
-)
-vectorizer = joblib.load(
-    download_file("tfidf_vectorizer.pkl", FILES["tfidf_vectorizer.pkl"])
-)
-label_encoder = joblib.load(
-    download_file("label_encoder.pkl", FILES["label_encoder.pkl"])
-)
-
-
-# === Text Preprocessing ===
+# Preprocessing function (same as training)
 def preprocess_text(text):
     text = text.lower()
 
@@ -76,20 +44,23 @@ def preprocess_text(text):
         flags=re.UNICODE,
     )
     text = emoji_pattern.sub(r"", text)
+
     text = re.sub(r"http\S+|www\S+", "", text)
     text = re.sub(r"@\S+", "", text)
     text = re.sub(r"<unk>", "", text)
     text = re.sub(r"\d+", "", text)
     text = re.sub(r"\s+", " ", text).strip()
+
     text = " ".join([word for word in text.split() if word not in stop_words])
     return text
 
 
-# === FastAPI App ===
+# Request format
 class TweetRequest(BaseModel):
     text: str
 
 
+# Create FastAPI app
 app = FastAPI()
 
 
@@ -110,7 +81,7 @@ def predict_sentiment(request: TweetRequest):
     }
 
 
-# Local testing
+# For local testing
 if __name__ == "__main__":
     uvicorn.run("fast_api:app", host="0.0.0.0", port=8000, reload=True)
 

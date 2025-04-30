@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import joblib
 import re
@@ -58,6 +59,31 @@ def preprocess_text(text):
 # Request format
 class TweetRequest(BaseModel):
     text: str
+
+
+# Custom response middleware (like TransformInterceptor)
+@app.middleware("http")
+async def add_custom_response_structure(request: Request, call_next):
+    try:
+        response = await call_next(request)
+        body = await response.body()
+        return JSONResponse(
+            content={
+                "data": response.json() if hasattr(response, "json") else body.decode(),
+                "message": "OK",
+                "statusCode": response.status_code,
+            },
+            status_code=response.status_code,
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "data": None,
+                "message": str(e),
+                "statusCode": 500,
+            },
+        )
 
 
 # Create FastAPI app
